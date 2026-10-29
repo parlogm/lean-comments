@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: python-cleanup-essay
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  The docstring shrinks to one line or disappears, narration comments and the banner go, BILL ticket history and the fixed-offset story go, the customer-timezone constraint survives as one line, the pre-existing whole-cents comment is untouched, code is unchanged, and the removed rationale is offered for the PR description.

@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: rich-context-feature-stub
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  A small stub with at most a few comment lines. The ticket background, ticket chain, design-review decision and rejected feature-flag idea stay out of the code; at most a one-line TODO(ABC-2153) and one sentence on the missing entitlement gate remain.

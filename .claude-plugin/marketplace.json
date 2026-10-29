@@ -1,0 +1,14 @@
+{
+  "name": "lean-comments",
+  "description": "A plugin that keeps Claude's code comments rare and one sentence long.",
+  "owner": {
+    "name": "Mihai Parlog"
+  },
+  "plugins": [
+    {
+      "name": "lean-comments",
+      "source": "./",
+      "description": "Keeps Claude's code comments rare and one sentence long."
+    }
+  ]
+}

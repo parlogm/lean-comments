@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: test-rich-context
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  Test names carry the intent. No class or method Javadoc, no incident narrative in comments, at most a couple of short comment lines.

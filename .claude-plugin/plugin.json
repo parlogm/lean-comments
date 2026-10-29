@@ -1,0 +1,9 @@
+{
+  "name": "lean-comments",
+  "version": "0.1.0",
+  "description": "Keeps Claude's code comments rare and one sentence long: an always-on rule, a cleanup skill, and a hook that flags essay-style comments as they are written.",
+  "author": { "name": "Mihai Parlog" },
+  "license": "Apache-2.0",
+  "repository": "https://github.com/parlogm/lean-comments",
+  "keywords": ["comments", "code-quality", "javadoc", "docstrings", "hooks"]
+}

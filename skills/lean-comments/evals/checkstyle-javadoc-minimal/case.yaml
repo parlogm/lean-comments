@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: checkstyle-javadoc-minimal
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  ProviderAvailability passes the Javadoc checks with the least Javadoc possible: one-line Javadoc on each field (JavadocVariable), and no method or constructor Javadoc, since any there would need full @param/@return tags.

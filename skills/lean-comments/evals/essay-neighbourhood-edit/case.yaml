@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: essay-neighbourhood-edit
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  The new method and exception are added with at most a line or two of comment, despite the surrounding file being full of multi-paragraph Javadoc. Existing comments are left alone.

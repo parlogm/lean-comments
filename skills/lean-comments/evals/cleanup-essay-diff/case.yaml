@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: cleanup-essay-diff
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  Essays become one sentence or disappear. History, ticket references, the design debate and banners go. The two real constraints survive in one line each: override=true replaces the parent section wholesale, and lists are replaced rather than merged because merging would resurrect removed items. The pre-existing Tenant comment is untouched, code is unchanged, and the removed rationale is offered for the PR description.

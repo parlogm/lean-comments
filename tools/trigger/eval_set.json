@@ -1,0 +1,20 @@
+[
+ {"query": "ugh the docstrings you wrote in services/invoicing.py are like 12 lines per function, trim them down to what we actually need before i push", "should_trigger": true},
+ {"query": "before I open the PR for the checkout refactor go through my uncommitted changes and cut the comments that just repeat the code", "should_trigger": true},
+ {"query": "why do you keep writing paragraphs of comments explaining every decision? clean up internal/sync/worker.go, keep only what someone actually needs", "should_trigger": true},
+ {"query": "reviewer left a note on #418 that src/hooks/useCart.ts has way too many redundant comments, can you fix that", "should_trigger": true},
+ {"query": "the comments in app/models/subscription.rb are super verbose, half of them just say what the next line does. tighten them", "should_trigger": true},
+ {"query": "strip the commented-out code and the noisy comments from the files i touched on this branch but keep anything explaining a real gotcha", "should_trigger": true},
+ {"query": "our ruff config has the D rules on and I'm adding a module to the sdk, whats the least docstring I can get away with on each public function", "should_trigger": true},
+ {"query": "the rustdoc comments in crates/parser/src/lexer.rs read like a design doc, shorten them to one line each", "should_trigger": true},
+ {"query": "go over RetryInterceptor.kt and tighten the comments, the 429 backoff one is important but it's 6 lines long", "should_trigger": true},
+ {"query": "add JSDoc with @param and @returns to every exported function in packages/sdk, we're generating API docs from it next sprint", "should_trigger": false},
+ {"query": "write a README for this repo explaining how to run the migrations locally against the docker postgres", "should_trigger": false},
+ {"query": "review PR #412 for bugs, especially the transaction handling in OrderService.place", "should_trigger": false},
+ {"query": "explain what the regex in validators/phone.ts actually matches, dont change the code", "should_trigger": false},
+ {"query": "translate the german comments in legacy/import_job.py to english, keep them otherwise as they are", "should_trigger": false},
+ {"query": "eslint fails with max-len in 5 files under src/components, fix those", "should_trigger": false},
+ {"query": "the webhook handler flow is really hard to follow for the new dev joining next week, can you add comments walking through what happens at each stage", "should_trigger": false},
+ {"query": "write the PR description for my current branch, summarize the design decisions from the commits", "should_trigger": false},
+ {"query": "implement GET /api/orders/:id/refunds with a handler, service and tests, following the existing orders module", "should_trigger": false}
+]

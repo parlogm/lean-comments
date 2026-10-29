@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: ts-rich-context-webhook
+context:
+  scaffold_script: place-files.sh
+expected_outcome: |
+  A small handler with at most a couple of one-line comments (for example on idempotency or cents). No ticket IDs, no v1/v2 migration history, no queue debate, no multi-paragraph JSDoc.
