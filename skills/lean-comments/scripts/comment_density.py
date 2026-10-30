@@ -153,7 +153,7 @@ def main():
     inp = event.get("tool_input", {})
     path = inp.get("file_path", "")
     lang = lang_for(path)
-    if not lang or SKIP_PATH.search(path):
+    if not lang or SKIP_PATH.search(path.replace("\\", "/")):
         return
     findings = findings_for(event.get("tool_name", ""), inp, lang)
     if not findings:
