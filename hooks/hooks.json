@@ -3,15 +3,27 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py\"", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py\"",
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\hooks\\run-hook.cmd\" hooks\\session_start.py",
+            "powershell": "& \"${CLAUDE_PLUGIN_ROOT}\\hooks\\run-hook.cmd\" hooks\\session_start.py",
+            "timeout": 10
+          }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit",
+        "matcher": "Edit|Write|MultiEdit|edit|create|apply_patch",
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/lean-comments/scripts/comment_density.py\"", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/lean-comments/scripts/comment_density.py\"",
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\hooks\\run-hook.cmd\" skills\\lean-comments\\scripts\\comment_density.py",
+            "powershell": "& \"${CLAUDE_PLUGIN_ROOT}\\hooks\\run-hook.cmd\" skills\\lean-comments\\scripts\\comment_density.py",
+            "timeout": 10
+          }
         ]
       }
     ]

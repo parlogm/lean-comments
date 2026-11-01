@@ -102,7 +102,7 @@ When asked to trim comments, or when invoked as `/lean-comments [path]`:
 
 ## The hook
 
-A PostToolUse hook (`scripts/comment_density.py`, wired up by the plugin) checks the comments each Edit, Write or MultiEdit *adds*. It flags any of:
+A PostToolUse hook (`scripts/comment_density.py`, wired up by the plugin) checks the comments each file edit *adds*. It flags any of:
 - 3 or more consecutive `//` or `#` lines
 - a doc block or docstring with more than 2 prose lines (tag lines don't count)
 - history or ticket-chain wording

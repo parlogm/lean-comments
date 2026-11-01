@@ -1,6 +1,6 @@
 {
   "name": "lean-comments",
-  "description": "A plugin that keeps Claude's code comments rare and one sentence long.",
+  "description": "A plugin that keeps AI agents' code comments rare and one sentence long.",
   "owner": {
     "name": "Mihai Parlog"
   },
@@ -8,7 +8,7 @@
     {
       "name": "lean-comments",
       "source": "./",
-      "description": "Keeps Claude's code comments rare and one sentence long."
+      "description": "Keeps AI agents' code comments rare and one sentence long."
     }
   ]
 }

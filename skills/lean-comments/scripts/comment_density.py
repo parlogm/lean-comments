@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PostToolUse hook: nudge Claude when an Edit/Write/MultiEdit adds essay-style or redundant comments.
+"""PostToolUse hook: nudge the agent when a file edit adds essay-style or redundant comments.
 
 Only comments the edit *adds* count, so touching a legacy file full of comments doesn't flag.
 Exits silently unless something trips. Disable with CLAUDE_LEAN_COMMENTS=off.
@@ -14,7 +14,7 @@ C_STYLE = {"java", "kt", "kts", "groovy", "gradle", "scala", "ts", "tsx", "js", 
 HASH = {"py", "sh", "bash", "zsh", "rb", "pl", "r", "tf"}
 SQL = {"sql"}
 
-SKIP_PATH = re.compile(r"/(\.claude|skills|build/generated|node_modules|vendor|dist)/")
+SKIP_PATH = re.compile(r"/(\.claude|\.codex|\.copilot|\.agents|skills|build/generated|node_modules|vendor|dist)/")
 # Tool directives and test-structure markers are not prose.
 EXEMPT = re.compile(r"^\s*(//|#|--)\s*(NOSONAR|noinspection|eslint|prettier-ignore|@ts-|noqa|type:|"
                     r"pylint|shellcheck|go:|nolint|CHECKSTYLE|spotless|language=|given|when|then|arrange|act|assert)\b",
@@ -30,6 +30,8 @@ LINE_RATIO = 0.2
 MIN_LINE_COMMENTS = 3
 MAX_RUN = 2
 MAX_BLOCK_PROSE = 2
+MAX_FILES_REPORTED = 5
+PATCH_START = "*** Begin Patch"
 
 
 def analyze(text, lang):
@@ -143,27 +145,99 @@ def findings_for(tool, inp, lang):
     return out
 
 
+def parse_patch(text):
+    files, path, old, new = {}, None, [], []
+
+    def end_hunk():
+        if path and (old or new):
+            files.setdefault(path, []).append(("\n".join(old), "\n".join(new)))
+        old.clear()
+        new.clear()
+
+    for line in text.splitlines():
+        if line.startswith(("*** Add File: ", "*** Update File: ", "*** Move to: ")):
+            end_hunk()
+            path = line.split(": ", 1)[1].strip()
+        elif line.startswith("*** Delete File: "):
+            end_hunk()
+            path = None
+        elif line.startswith(("***", "@@")):
+            end_hunk()
+        elif path and line.startswith("+"):
+            new.append(line[1:])
+        elif path and line.startswith("-"):
+            old.append(line[1:])
+        elif path:
+            old.append(line[1:])
+            new.append(line[1:])
+    end_hunk()
+    return files
+
+
+def edits_by_file(event):
+    # Judge by payload shape: the same tool name carries different shapes across agents and models.
+    inp = event.get("tool_input", event.get("toolArgs", {}))
+    if isinstance(inp, str):
+        try:
+            inp = json.loads(inp)
+        except ValueError:
+            pass
+    patch = inp.get("command") if isinstance(inp, dict) else inp
+    if isinstance(patch, str) and patch.lstrip().startswith(PATCH_START):
+        return parse_patch(patch)
+    if not isinstance(inp, dict):
+        return {}
+    path = inp.get("file_path") or inp.get("path")
+    if not path:
+        return {}
+    if "edits" in inp:
+        return {path: pairs("MultiEdit", inp)}
+    written = inp.get("content", inp.get("file_text"))
+    if written is not None:
+        return {path: [("", written)]}
+    return {path: [(inp.get("old_string", inp.get("old_str", "")), inp.get("new_string", inp.get("new_str", "")))]}
+
+
+def sections_for(event):
+    files = edits_by_file(event)
+    sections = []
+    for path, file_pairs in files.items():
+        lang = lang_for(path)
+        if not lang or SKIP_PATH.search("/" + path.replace("\\", "/")):
+            continue
+        edits = [{"old_string": old, "new_string": new} for old, new in file_pairs]
+        findings = findings_for("MultiEdit", {"edits": edits}, lang)
+        if findings:
+            shown = path.replace("\\", "/")
+            cwd = str(event.get("cwd", "")).replace("\\", "/").rstrip("/")
+            name = shown.removeprefix(cwd + "/") if len(files) > 1 else shown.rsplit("/", 1)[-1]
+            sections.append(f"lean-comments: {name} has comments to trim.\n" + "\n".join(findings))
+    hidden = len(sections) - MAX_FILES_REPORTED
+    if hidden > 0:
+        sections = sections[:MAX_FILES_REPORTED] + [f"lean-comments: {hidden} more files have comments to trim."]
+    return sections
+
+
 def main():
     if os.environ.get("CLAUDE_LEAN_COMMENTS", "").lower() == "off":
         return
     try:
-        event = json.load(sys.stdin)
-    except ValueError:
+        event = json.loads(sys.stdin.buffer.read())
+        sections = sections_for(event)
+    except (ValueError, AttributeError, TypeError):
         return
-    inp = event.get("tool_input", {})
-    path = inp.get("file_path", "")
-    lang = lang_for(path)
-    if not lang or SKIP_PATH.search(path.replace("\\", "/")):
+    if not sections:
         return
-    findings = findings_for(event.get("tool_name", ""), inp, lang)
-    if not findings:
-        return
-    reason = (f"lean-comments: {os.path.basename(path)} has comments to trim.\n" + "\n".join(findings) +
+    reason = ("\n".join(sections) +
               "\nCut each to one sentence or delete it. Reasoning, history, ticket chains and design rationale "
               "belong in the commit or PR description, not the code. Keep only what a reader would otherwise get "
               "wrong, plus Javadoc a linter requires. If a flagged comment is genuinely essential as written, "
               "leave it and carry on.")
-    print(json.dumps({"decision": "block", "reason": reason}))
+    # Copilot documents only additionalContext for feeding postToolUse output to the model.
+    if os.environ.get("COPILOT_CLI"):
+        print(json.dumps({"additionalContext": reason}))
+    else:
+        print(json.dumps({"decision": "block", "reason": reason}))
 
 
 if __name__ == "__main__":

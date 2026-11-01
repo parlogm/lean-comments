@@ -1,8 +1,8 @@
 # lean-comments
 
-A Claude Code plugin that keeps Claude's code comments rare and one sentence long.
+A plugin for Claude Code, OpenAI Codex and GitHub Copilot CLI that keeps AI agents' code comments rare and one sentence long.
 
-Left alone, Claude tends to write comments that are true and well meant but far too long: multi-paragraph Javadoc, five-line rationales above a method, history ("this used to…"), ticket chains, design debates, and background copied straight from the task prompt. This plugin pushes that reasoning into the commit message or PR description, where it belongs, and leaves at most one sentence in the code, and only where a reader would otherwise get the code wrong.
+Left alone, coding agents tend to write comments that are true and well meant but far too long: multi-paragraph Javadoc, five-line rationales above a method, history ("this used to…"), ticket chains, design debates, and background copied straight from the task prompt. This plugin pushes that reasoning into the commit message or PR description, where it belongs, and leaves at most one sentence in the code, and only where a reader would otherwise get the code wrong.
 
 ## What's in it
 
@@ -10,20 +10,46 @@ Left alone, Claude tends to write comments that are true and well meant but far 
 |---|---|
 | **Comment rule** (`hooks/comment-rule.md`) | Injected into every session by a `SessionStart` hook. One sentence per comment, no history/tickets/debates, doc comments only where a linter requires them, and don't copy the density of over-commented neighbours. Most of the effect comes from this. |
 | **Skill** (`skills/lean-comments/`) | The detailed rules with examples, doc-comment requirements per ecosystem (Checkstyle, ESLint jsdoc, ruff/pydocstyle, revive, `missing_docs`, detekt, CS1591), and a `/lean-comments` cleanup pass for a diff, file or branch. The cleanup hands removed rationale back as PR-description text. |
-| **Hook** (`skills/lean-comments/scripts/comment_density.py`) | `PostToolUse` on Edit/Write/MultiEdit. Looks only at comments the edit *adds*, and nudges Claude when it sees a 3+ line comment paragraph, a doc block with more than 2 prose lines or `<p>` paragraphs, history or ticket-chain wording, or comments above ~20% of the added code. Works for Java, Kotlin, TS/JS, Go, Rust, Swift, C/C++, C#, Python, Ruby, shell, SQL and more. |
+| **Hook** (`skills/lean-comments/scripts/comment_density.py`) | `PostToolUse` on file edits, including Codex and Copilot `apply_patch`. Looks only at comments the edit *adds*, and nudges the agent when it sees a 3+ line comment paragraph, a doc block with more than 2 prose lines or `<p>` paragraphs, history or ticket-chain wording, or comments above ~20% of the added code. Works for Java, Kotlin, TS/JS, Go, Rust, Swift, C/C++, C#, Python, Ruby, shell, SQL and more. |
 
 ## Install
+
+The repository is private, so adding the marketplace needs git access to it (e.g. `gh auth login` with the credential helper set up).
+
+### Claude Code
 
 ```text
 /plugin marketplace add parlogm/lean-comments
 /plugin install lean-comments@lean-comments
 ```
 
-The repository is private, so the marketplace add needs git access to it (e.g. `gh auth login` with the credential helper set up).
+### OpenAI Codex
+
+```sh
+codex plugin marketplace add parlogm/lean-comments
+codex plugin add lean-comments@lean-comments
+```
+
+Enabling a plugin doesn't trust its hooks: approve them once with `/hooks` in the terminal CLI (`codex`). The desktop app has no `/hooks` command; its bundled CLI is at `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex` on macOS.
+
+### GitHub Copilot CLI
+
+```sh
+copilot plugin marketplace add parlogm/lean-comments
+copilot plugin install lean-comments@lean-comments
+```
+
+### Copilot cloud agent and VS Code
+
+The cloud agent doesn't load plugin hooks, and plugin support in VS Code hasn't been tested. Copy `hooks/comment-rule.md` into the repository's `.github/copilot-instructions.md` to get the rule, without the skill or hook.
+
+### Windows
+
+On Windows, Codex and Copilot start the hooks through `hooks/run-hook.cmd`, which tries `py -3`, `python`, then `python3`, and ignores the Microsoft Store stub. Without Python 3 the hook reports a failure instead of skipping silently. Claude Code still calls `python3` directly, so it needs a real `python3` on the `PATH` of its shell. None of this has been run on a Windows machine yet.
 
 If you previously set this up by hand, remove the duplicates: the `# Code comments` section in `~/.claude/CLAUDE.md`, the `PostToolUse` entry for `comment_density.py` in `~/.claude/settings.json`, and `~/.claude/skills/lean-comments/`.
 
-### Without the plugin system
+### Without the plugin system (Claude Code)
 
 1. Copy `skills/lean-comments/` to `~/.claude/skills/lean-comments/`.
 2. Append `hooks/comment-rule.md` to `~/.claude/CLAUDE.md`.
@@ -40,14 +66,14 @@ If you previously set this up by hand, remove the duplicates: the `# Code commen
 
 ## Use
 
-- Nothing to do day to day: the rule and hook apply to all code Claude writes.
+- Nothing to do day to day: the rule and hook apply to all code the agent writes.
 - `/lean-comments [path]` trims the comments your uncommitted diff added (or the given path).
-- `CLAUDE_LEAN_COMMENTS=off` disables both hooks for a session.
-- If the hook flags a comment that really is essential as written, Claude keeps it and says so in one line.
+- `CLAUDE_LEAN_COMMENTS=off` disables both hooks for a session, in all three tools.
+- If the hook flags a comment that really is essential as written, the agent keeps it and says so in one line.
 
 ## Results
 
-All runs used Claude Opus 5.5 in isolated `claude -p` sessions (`--setting-sources project`, so no other user config), one or two runs per configuration. Small samples, but the direction was the same in every round.
+These numbers only measure Claude; the plugin hasn't been evaluated on Codex or Copilot models. All runs used Claude Opus 5.5 in isolated `claude -p` sessions (`--setting-sources project`, so no other user config), one or two runs per configuration. Small samples, but the direction was the same in every round.
 
 **Eval suite** (`skills/lean-comments/evals/`, graded by `tools/grade.py`):
 
@@ -72,6 +98,14 @@ Typical difference: given a ticket with background, a dependency chain and a rej
 | Scroll-spy in a navbar (Angular) | 3.5 / 7.5 | 0 / 0.5 |
 
 **Hook calibration**: replaying the history of Claude-co-authored commits from two codebases through the hook flags 19% and 38% of file edits, almost all of them multi-line rationale comments and doc blocks.
+
+## Tests
+
+```sh
+python3 -m unittest tests/test_hooks.py
+```
+
+Covers the hook payloads and output formats of all three tools.
 
 ## Evals
 
