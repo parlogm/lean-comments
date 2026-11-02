@@ -3,11 +3,13 @@ import os
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-DENSITY = ROOT / "skills/lean-comments/scripts/comment_density.py"
-SESSION_START = ROOT / "hooks/session_start.py"
+DENSITY = "post-tool-use"
+SESSION_START = "session-start"
+BINARY = os.environ.get("LEAN_COMMENTS_BIN")
 ESSAY = "// one\n// two\n// three\nint x = 1;\n"
 PLUS_ESSAY = "+// one\n+// two\n+// three\n+int x = 1;\n"
 CLEAN = "// The vendor returns 200 for unknown ids.\nint x = 1;\n"
@@ -19,7 +21,8 @@ def run(script, event=None, copilot=False, **env_extra):
     if copilot:
         env["COPILOT_CLI"] = "1"
     payload = json.dumps(event if event is not None else {}).encode()
-    done = subprocess.run([sys.executable, str(script)], input=payload, capture_output=True, env=env, check=True)
+    launcher = [BINARY] if BINARY else ["sh", str(ROOT / "hooks/run")]
+    done = subprocess.run([*launcher, script], input=payload, capture_output=True, env=env, check=True)
     return json.loads(done.stdout) if done.stdout.strip() else None
 
 
@@ -179,32 +182,52 @@ class SessionStart(unittest.TestCase):
         self.assertIsNone(run(SESSION_START, CLAUDE_LEAN_COMMENTS="off"))
 
 
-class WindowsWiring(unittest.TestCase):
+class HookWiring(unittest.TestCase):
+    EDIT = json.dumps({"tool_name": "Write", "tool_input": {"file_path": "/r/A.java", "content": ESSAY}}).encode()
+
     def handlers(self):
         config = json.loads((ROOT / "hooks/hooks.json").read_text())
-        return [h for groups in config["hooks"].values() for group in groups for h in group["hooks"]]
+        return {name: groups[0]["hooks"][0] for name, groups in config["hooks"].items()}
 
-    def test_each_hook_launches_an_existing_script_from_both_windows_shells(self):
-        launcher = '"${CLAUDE_PLUGIN_ROOT}\\hooks\\run-hook.cmd" '
-        for handler in self.handlers():
-            self.assertTrue(handler["commandWindows"].startswith(launcher))
-            self.assertTrue(handler["powershell"].startswith("& " + launcher))
-            script = handler["commandWindows"][len(launcher):].replace("\\", "/")
-            self.assertTrue((ROOT / script).is_file(), script)
-            self.assertTrue(handler["powershell"].endswith(handler["commandWindows"]))
+    def launch(self, argv):
+        env = {k: v for k, v in os.environ.items() if k not in ("COPILOT_CLI", "CLAUDE_LEAN_COMMENTS")}
+        results = {}
+        for name, payload in (("SessionStart", b"{}"), ("PostToolUse", self.EDIT)):
+            done = subprocess.run(argv(self.handlers()[name]), input=payload, capture_output=True, env=env, check=True)
+            results[name] = json.loads(done.stdout)
+        self.assertIn("Default to no comment", results["SessionStart"]["hookSpecificOutput"]["additionalContext"])
+        self.assertEqual(results["PostToolUse"]["decision"], "block")
 
-    def test_unix_command_stays_on_python3(self):
-        for handler in self.handlers():
-            self.assertTrue(handler["command"].startswith('python3 "${CLAUDE_PLUGIN_ROOT}/'))
+    def filled(self, command):
+        return command.replace("${CLAUDE_PLUGIN_ROOT}", str(ROOT))
 
-    def test_launcher_uses_crlf_and_tries_each_python_before_failing_visibly(self):
-        raw = (ROOT / "hooks/run-hook.cmd").read_bytes()
-        self.assertEqual(raw.count(b"\n"), raw.count(b"\r\n"))
-        text = raw.decode()
-        positions = [text.index(name + ' -c "') for name in ("py -3", "python", "python3")]
-        self.assertEqual(positions, sorted(positions))
-        self.assertIn("1>&2", text)
-        self.assertTrue(text.rstrip().endswith("exit /b 1"))
+    def test_posix_command_runs_through_sh(self):
+        self.launch(lambda handler: ["sh", "-c", self.filled(handler["command"])])
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows shells")
+    def test_codex_command_runs_through_cmd_the_way_codex_starts_it(self):
+        self.launch(lambda handler: f'cmd.exe /C "{self.filled(handler["commandWindows"])}"')
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows shells")
+    def test_copilot_command_runs_through_powershell(self):
+        self.launch(lambda handler: ["powershell", "-NoProfile", "-Command", self.filled(handler["powershell"])])
+
+    @unittest.skipIf(sys.platform == "win32", "needs a fake uname on PATH")
+    def test_unknown_platform_reports_the_failure(self):
+        with tempfile.TemporaryDirectory() as fake_bin:
+            uname = pathlib.Path(fake_bin, "uname")
+            uname.write_text("#!/bin/sh\necho Plan9\n")
+            uname.chmod(0o755)
+            env = {**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}"}
+            done = subprocess.run(["sh", str(ROOT / "hooks/run"), "session-start"], capture_output=True, env=env)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(b"no build for Plan9", done.stderr)
+
+    def test_unknown_command_reports_the_failure(self):
+        launcher = [BINARY] if BINARY else ["sh", str(ROOT / "hooks/run")]
+        done = subprocess.run([*launcher, "nope"], capture_output=True)
+        self.assertEqual(done.returncode, 1)
+        self.assertIn(b"unknown command", done.stderr)
 
 
 if __name__ == "__main__":

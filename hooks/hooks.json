@@ -5,9 +5,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_start.py\"",
-            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\hooks\\run-hook.cmd\" hooks\\session_start.py",
-            "powershell": "& \"${CLAUDE_PLUGIN_ROOT}\\hooks\\run-hook.cmd\" hooks\\session_start.py",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run\" session-start",
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" session-start",
+            "powershell": "& \"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" session-start",
             "timeout": 10
           }
         ]
@@ -19,9 +19,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/lean-comments/scripts/comment_density.py\"",
-            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\hooks\\run-hook.cmd\" skills\\lean-comments\\scripts\\comment_density.py",
-            "powershell": "& \"${CLAUDE_PLUGIN_ROOT}\\hooks\\run-hook.cmd\" skills\\lean-comments\\scripts\\comment_density.py",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run\" post-tool-use",
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" post-tool-use",
+            "powershell": "& \"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" post-tool-use",
             "timeout": 10
           }
         ]

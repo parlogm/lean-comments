@@ -10,7 +10,7 @@ Left alone, coding agents tend to write comments that are true and well meant bu
 |---|---|
 | **Comment rule** (`hooks/comment-rule.md`) | Injected into every session by a `SessionStart` hook. One sentence per comment, no history/tickets/debates, doc comments only where a linter requires them, and don't copy the density of over-commented neighbours. Most of the effect comes from this. |
 | **Skill** (`skills/lean-comments/`) | The detailed rules with examples, doc-comment requirements per ecosystem (Checkstyle, ESLint jsdoc, ruff/pydocstyle, revive, `missing_docs`, detekt, CS1591), and a `/lean-comments` cleanup pass for a diff, file or branch. The cleanup hands removed rationale back as PR-description text. |
-| **Hook** (`skills/lean-comments/scripts/comment_density.py`) | `PostToolUse` on file edits, including Codex and Copilot `apply_patch`. Looks only at comments the edit *adds*, and nudges the agent when it sees a 3+ line comment paragraph, a doc block with more than 2 prose lines or `<p>` paragraphs, history or ticket-chain wording, or comments above ~20% of the added code. Works for Java, Kotlin, TS/JS, Go, Rust, Swift, C/C++, C#, Python, Ruby, shell, SQL and more. |
+| **Hook** (`hook/`, built into `bin/`) | `PostToolUse` on file edits, including Codex and Copilot `apply_patch`. Looks only at comments the edit *adds*, and nudges the agent when it sees a 3+ line comment paragraph, a doc block with more than 2 prose lines or `<p>` paragraphs, history or ticket-chain wording, or comments above ~20% of the added code. Works for Java, Kotlin, TS/JS, Go, Rust, Swift, C/C++, C#, Python, Ruby, shell, SQL and more. |
 
 ## Install
 
@@ -43,15 +43,15 @@ copilot plugin install lean-comments@lean-comments
 
 The cloud agent doesn't load plugin hooks, and plugin support in VS Code hasn't been tested. Copy `hooks/comment-rule.md` into the repository's `.github/copilot-instructions.md` to get the rule, without the skill or hook.
 
-### Windows
+### Requirements
 
-On Windows, Codex and Copilot start the hooks through `hooks/run-hook.cmd`, which tries `py -3`, `python`, then `python3`, and ignores the Microsoft Store stub. Without Python 3 the hook reports a failure instead of skipping silently. Claude Code still calls `python3` directly, so it needs a real `python3` on the `PATH` of its shell. None of this has been run on a Windows machine yet.
+Nothing to install: the hooks are small compiled programs committed in `bin/`, for macOS (Apple silicon and Intel), Linux (x86-64 and ARM64, static) and Windows (x86-64). Claude Code on Windows also needs Git Bash, because it starts the hooks through `sh`; without it the hooks fail and the agent carries on. On other platforms the hooks report that there is no build, and the skill still works. To get the rule there, copy `hooks/comment-rule.md` into your tool's instructions file (`CLAUDE.md`, `AGENTS.md` or `.github/copilot-instructions.md`).
 
-If you previously set this up by hand, remove the duplicates: the `# Code comments` section in `~/.claude/CLAUDE.md`, the `PostToolUse` entry for `comment_density.py` in `~/.claude/settings.json`, and `~/.claude/skills/lean-comments/`.
+If you previously set this up by hand, remove the duplicates: the `# Code comments` section in `~/.claude/CLAUDE.md`, the `PostToolUse` entry for the hook in `~/.claude/settings.json`, and `~/.claude/skills/lean-comments/`.
 
 ### Without the plugin system (Claude Code)
 
-1. Copy `skills/lean-comments/` to `~/.claude/skills/lean-comments/`.
+1. Copy `skills/lean-comments/` to `~/.claude/skills/lean-comments/`, and `hooks/run` and `bin/` to `~/.claude/lean-comments/hooks/` and `~/.claude/lean-comments/bin/`.
 2. Append `hooks/comment-rule.md` to `~/.claude/CLAUDE.md`.
 3. Add the hook to `~/.claude/settings.json`:
 
@@ -59,7 +59,7 @@ If you previously set this up by hand, remove the duplicates: the `# Code commen
 "hooks": {
   "PostToolUse": [
     { "matcher": "Edit|Write|MultiEdit",
-      "hooks": [{ "type": "command", "command": "python3 ~/.claude/skills/lean-comments/scripts/comment_density.py", "timeout": 10 }] }
+      "hooks": [{ "type": "command", "command": "sh ~/.claude/lean-comments/hooks/run post-tool-use", "timeout": 10 }] }
   ]
 }
 ```
@@ -105,7 +105,11 @@ Typical difference: given a ticket with background, a dependency chain and a rej
 python3 -m unittest tests/test_hooks.py
 ```
 
-Covers the hook payloads and output formats of all three tools.
+Covers the hook payloads and output formats of all three tools, and the real hook commands on each platform. Set `LEAN_COMMENTS_BIN` to test a local build (`cargo build --release` in `hook/`).
+
+## Changing the hook
+
+The source is in `hook/`, and it needs Rust to build. After changing it or `hooks/comment-rule.md`, put `[build binaries]` in the commit message and push, or run the `build` workflow from the Actions tab once it's on `main`. CI tests all platforms and commits fresh binaries to `bin/`, so pull afterwards. CI fails while `bin/` is out of date. Each rebuild adds a few MB to git history, so run it once per finished change.
 
 ## Evals
 
@@ -115,7 +119,7 @@ Test cases live in `skills/lean-comments/evals/<case>/` in the layout `claude pl
 tools/run_case.sh rich-context-feature-stub with_skill    /tmp/lc-iter-1
 tools/run_case.sh rich-context-feature-stub without_skill /tmp/lc-iter-1
 tools/grade.py /tmp/lc-iter-1                # writes grading.json + comments.txt per run
-tools/replay.py skills/lean-comments/scripts/comment_density.py path/to/repo   # hook flag rate on real history
+tools/replay.py bin/lean-comments-macos-arm64 path/to/repo   # hook flag rate on real history
 ```
 
 - Configurations: `with_skill` loads this repo as a plugin, `rule_only` appends only the rule, `without_skill` uses neither.

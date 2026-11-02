@@ -4,3 +4,4 @@ __pycache__/
 tools/checkstyle.cp
 iteration-*/
 evals/results/
+hook/target/

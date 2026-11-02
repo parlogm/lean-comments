@@ -1,1 +1,4 @@
-*.cmd text eol=crlf
+bin/** binary
+hooks/run text eol=lf
+hooks/comment-rule.md text eol=lf
+hook/** text eol=lf

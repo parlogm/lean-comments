@@ -1,20 +1,31 @@
 #!/usr/bin/env python3
-"""usage: replay.py <hook-script> <repo> [<repo>...]
+"""usage: replay.py <hook-binary> <repo> [<repo>...]
 
 Replays every code hunk from each repo's history through the hook, per language.
 Set CLAUDE_ONLY=1 to restrict to commits with a Claude co-author trailer.
 """
 import collections
-import importlib.util
+import json
 import os
 import random
 import re
 import subprocess
 import sys
 
-spec = importlib.util.spec_from_file_location("hook", sys.argv[1])
-hook = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(hook)
+SKIP_PATH = re.compile(r"/(\.claude|\.codex|\.copilot|\.agents|skills|build/generated|node_modules|vendor|dist)/")
+SOURCE_EXTS = {"java", "kt", "kts", "groovy", "gradle", "scala", "ts", "tsx", "js", "jsx", "mjs", "cjs", "go", "rs",
+               "swift", "c", "h", "cc", "cpp", "hpp", "cs", "dart", "php", "scss", "py", "sh", "bash", "zsh", "rb",
+               "pl", "r", "tf", "sql"}
+
+
+def findings_for(ext, edits):
+    event = {"tool_name": "MultiEdit", "tool_input": {"file_path": f"replay.{ext}", "edits": edits}}
+    env = {k: v for k, v in os.environ.items() if k not in ("COPILOT_CLI", "CLAUDE_LEAN_COMMENTS")}
+    out = subprocess.run([sys.argv[1], "post-tool-use"], input=json.dumps(event), capture_output=True, text=True,
+                         env=env).stdout
+    return json.loads(out)["reason"].split("\n")[1:-1] if out.strip() else []
+
+
 claude_only = os.environ.get("CLAUDE_ONLY") == "1"
 
 stats = collections.defaultdict(lambda: [0, 0])
@@ -33,11 +44,10 @@ for repo in sys.argv[2:]:
                               capture_output=True, text=True).stdout
         for f in re.split(r"^diff --git ", diff, flags=re.M)[1:]:
             path = f.split("\n", 1)[0].split(" b/")[-1]
-            if hook.SKIP_PATH.search("/" + path) or "graphify-out" in path:
+            if SKIP_PATH.search("/" + path) or "graphify-out" in path:
                 continue
             ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
-            lang = hook.lang_for(path)
-            if not lang:
+            if ext not in SOURCE_EXTS:
                 continue
             edits = []
             for hunk in re.split(r"^@@.*@@.*$", f, flags=re.M)[1:]:
@@ -47,7 +57,7 @@ for repo in sys.argv[2:]:
             if not any(e["new_string"] for e in edits):
                 continue
             stats[ext][0] += 1
-            found = hook.findings_for("MultiEdit", {"edits": edits}, lang)
+            found = findings_for(ext, edits)
             if found:
                 stats[ext][1] += 1
                 for x in found:

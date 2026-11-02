@@ -1,0 +1,15 @@
+#!/bin/sh
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64) build=macos-arm64 ;;
+  Darwin-x86_64) build=macos-x86_64 ;;
+  Linux-x86_64) build=linux-x86_64 ;;
+  Linux-aarch64 | Linux-arm64) build=linux-arm64 ;;
+  MINGW* | MSYS* | CYGWIN*) build=windows-x86_64.exe ;;
+  *)
+    echo "lean-comments: no build for $(uname -s) $(uname -m), so this hook did not run." >&2
+    exit 1
+    ;;
+esac
+binary="$(dirname "$0")/../bin/lean-comments-$build"
+[ -x "$binary" ] || chmod +x "$binary" 2>/dev/null
+exec "$binary" "$@"

@@ -1,0 +1,73 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, target: aarch64-apple-darwin, build: macos-arm64, test: true }
+          - { os: macos-15-intel, target: x86_64-apple-darwin, build: macos-x86_64, test: true }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, build: linux-x86_64, test: true }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, build: linux-arm64, test: true }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, build: windows-x86_64.exe, test: true }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - if: startsWith(matrix.target, 'x86_64-unknown-linux') || startsWith(matrix.target, 'aarch64-unknown-linux')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+        working-directory: hook
+      - name: Copy the build into bin
+        run: |
+          mkdir -p bin
+          suffix=""; case "${{ matrix.build }}" in *.exe) suffix=.exe ;; esac
+          cp "hook/target/${{ matrix.target }}/release/lean-comments$suffix" "bin/lean-comments-${{ matrix.build }}"
+          chmod +x "bin/lean-comments-${{ matrix.build }}"
+      - if: matrix.test
+        run: python -m unittest tests/test_hooks.py -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.build }}
+          path: bin/lean-comments-${{ matrix.build }}
+          if-no-files-found: error
+
+  check-binaries:
+    if: github.event_name != 'workflow_dispatch' && !contains(github.event.head_commit.message, '[build binaries]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/source_hash.py --check
+
+  commit-binaries:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build binaries]')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: bin
+          merge-multiple: true
+      - run: |
+          chmod +x bin/lean-comments-*
+          python3 tools/source_hash.py --write
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bin
+          git diff --cached --quiet || git commit -m "Rebuild hook binaries"
+          git push
