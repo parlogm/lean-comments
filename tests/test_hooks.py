@@ -16,7 +16,7 @@ CLEAN = "// The vendor returns 200 for unknown ids.\nint x = 1;\n"
 
 
 def run(script, event=None, copilot=False, **env_extra):
-    env = {k: v for k, v in os.environ.items() if k not in ("COPILOT_CLI", "CLAUDE_LEAN_COMMENTS")}
+    env = {k: v for k, v in os.environ.items() if k not in ("COPILOT_CLI", "LEAN_COMMENTS", "CLAUDE_LEAN_COMMENTS")}
     env.update(env_extra)
     if copilot:
         env["COPILOT_CLI"] = "1"
@@ -56,7 +56,11 @@ class ClaudePayloads(unittest.TestCase):
 
     def test_off_switch_silences_hook(self):
         event = {"tool_name": "Write", "tool_input": {"file_path": "/r/A.java", "content": ESSAY}}
-        self.assertIsNone(run(DENSITY, event, CLAUDE_LEAN_COMMENTS="off"))
+        self.assertIsNone(run(DENSITY, event, LEAN_COMMENTS="off"))
+
+    def test_legacy_off_switch_still_silences_hook(self):
+        event = {"tool_name": "Write", "tool_input": {"file_path": "/r/A.java", "content": ESSAY}}
+        self.assertIsNone(run(DENSITY, event, CLAUDE_LEAN_COMMENTS="OFF"))
 
     def test_windows_skip_path_is_respected(self):
         event = {"tool_name": "Write", "tool_input": {"file_path": "C:\\r\\node_modules\\A.java", "content": ESSAY}}
@@ -179,6 +183,7 @@ class SessionStart(unittest.TestCase):
         self.assertIn("Default to no comment", run(SESSION_START, copilot=True)["additionalContext"])
 
     def test_off_switch_silences_rule(self):
+        self.assertIsNone(run(SESSION_START, LEAN_COMMENTS="off"))
         self.assertIsNone(run(SESSION_START, CLAUDE_LEAN_COMMENTS="off"))
 
 
@@ -190,7 +195,7 @@ class HookWiring(unittest.TestCase):
         return {name: groups[0]["hooks"][0] for name, groups in config["hooks"].items()}
 
     def launch(self, argv):
-        env = {k: v for k, v in os.environ.items() if k not in ("COPILOT_CLI", "CLAUDE_LEAN_COMMENTS")}
+        env = {k: v for k, v in os.environ.items() if k not in ("COPILOT_CLI", "LEAN_COMMENTS", "CLAUDE_LEAN_COMMENTS")}
         results = {}
         for name, payload in (("SessionStart", b"{}"), ("PostToolUse", self.EDIT)):
             done = subprocess.run(argv(self.handlers()[name]), input=payload, capture_output=True, env=env, check=True)

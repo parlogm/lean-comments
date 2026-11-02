@@ -1,6 +1,6 @@
 ---
 name: lean-comments
-description: Keeps code comments rare and one sentence long, and trims over-commented code, in any language. Use when the user says there are too many comments, comments are too long, redundant or essay-like, Javadoc/JSDoc/docstrings are too verbose, or asks to clean up, trim, shorten or de-noise comments in a diff, file, branch or PR. Use it when the lean-comments hook flags an edit, for /lean-comments, and when unsure how much Javadoc a Checkstyle config requires.
+description: Keeps code comments rare and one sentence long, and trims over-commented code, in any language. Use when the user says there are too many comments, comments are too long, redundant or essay-like, Javadoc/JSDoc/docstrings are too verbose, or asks to clean up, trim, shorten or de-noise comments in a diff, file, branch or PR. Use it when the lean-comments hook flags an edit, when invoked by name, and when unsure how much Javadoc a Checkstyle config requires.
 ---
 
 # Lean comments
@@ -85,9 +85,9 @@ If nothing enforces doc comments, write none. Library code with external consume
 
 Don't rewrite comments outside the code you're changing, because that's diff noise. There is one exception: if your change makes a nearby comment false, fix or delete it. Don't take surrounding essay-style comments as the density to match.
 
-## Cleanup pass (`/lean-comments`)
+## Cleanup pass
 
-When asked to trim comments, or when invoked as `/lean-comments [path]`:
+When asked to trim comments, or when this skill is invoked with an optional path:
 
 1. **Scope.** Use the given path. Otherwise use the working-tree diff (`git diff -U0 HEAD`, plus untracked files from `git status --porcelain`). Touch only comments the diff added, unless the user asked for a whole-file or whole-repo sweep.
 2. **Decide** for each comment:
@@ -110,4 +110,4 @@ A PostToolUse hook (wired up by the plugin) checks the comments each file edit *
 
 One-line Javadoc and tool directives are exempt.
 
-When it fires, compress or delete what it lists, following the rules above. It's a heuristic. If a flagged comment really is essential as written (a required multi-tag Javadoc, say), keep it, say so in one line, and move on. To silence it for a session, set `CLAUDE_LEAN_COMMENTS=off`.
+When it fires, compress or delete what it lists, following the rules above. It's a heuristic. If a flagged comment really is essential as written (a required multi-tag Javadoc, say), keep it, say so in one line, and move on. To silence it for a session, set `LEAN_COMMENTS=off`.

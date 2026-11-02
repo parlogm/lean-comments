@@ -20,7 +20,7 @@ SOURCE_EXTS = {"java", "kt", "kts", "groovy", "gradle", "scala", "ts", "tsx", "j
 
 def findings_for(ext, edits):
     event = {"tool_name": "MultiEdit", "tool_input": {"file_path": f"replay.{ext}", "edits": edits}}
-    env = {k: v for k, v in os.environ.items() if k not in ("COPILOT_CLI", "CLAUDE_LEAN_COMMENTS")}
+    env = {k: v for k, v in os.environ.items() if k not in ("COPILOT_CLI", "LEAN_COMMENTS", "CLAUDE_LEAN_COMMENTS")}
     out = subprocess.run([sys.argv[1], "post-tool-use"], input=json.dumps(event), capture_output=True, text=True,
                          env=env).stdout
     return json.loads(out)["reason"].split("\n")[1:-1] if out.strip() else []

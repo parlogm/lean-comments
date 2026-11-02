@@ -45,7 +45,7 @@ The cloud agent doesn't load plugin hooks, and plugin support in VS Code hasn't 
 
 Nothing to install: the hooks are small compiled programs committed in `bin/`, for macOS (Apple silicon and Intel), Linux (x86-64 and ARM64, static) and Windows (x86-64). Claude Code on Windows also needs Git Bash, because it starts the hooks through `sh`; without it the hooks fail and the agent carries on. On other platforms the hooks report that there is no build, and the skill still works. To get the rule there, copy `hooks/comment-rule.md` into your tool's instructions file (`CLAUDE.md`, `AGENTS.md` or `.github/copilot-instructions.md`).
 
-If you previously set this up by hand, remove the duplicates: the `# Code comments` section in `~/.claude/CLAUDE.md`, the `PostToolUse` entry for the hook in `~/.claude/settings.json`, and `~/.claude/skills/lean-comments/`.
+If you previously set this up by hand in Claude Code, remove the duplicates: the `# Code comments` section in `~/.claude/CLAUDE.md`, the `PostToolUse` entry for the hook in `~/.claude/settings.json`, and `~/.claude/skills/lean-comments/`.
 
 ### Without the plugin system (Claude Code)
 
@@ -65,8 +65,8 @@ If you previously set this up by hand, remove the duplicates: the `# Code commen
 ## Use
 
 - Nothing to do day to day: the rule and hook apply to all code the agent writes.
-- `/lean-comments [path]` trims the comments your uncommitted diff added (or the given path).
-- `CLAUDE_LEAN_COMMENTS=off` disables both hooks for a session, in all three tools.
+- Ask the agent to trim comments, or invoke the `lean-comments` skill (`/lean-comments:lean-comments` in Claude Code), to trim the comments your uncommitted diff added, or a path you give it.
+- `LEAN_COMMENTS=off` disables both hooks for a session, in all three tools. The older `CLAUDE_LEAN_COMMENTS=off` still works.
 - If the hook flags a comment that really is essential as written, the agent keeps it and says so in one line.
 
 ## Results
@@ -135,7 +135,7 @@ If the rule or the feedback is missing, note which tool it was and any hook erro
 
 ## Evals
 
-Test cases live in `skills/lean-comments/evals/<case>/` in the layout `claude plugin eval` reads, so `claude plugin eval .` works too. The scripts in `tools/` run them with a with/without comparison:
+Test cases live in `skills/lean-comments/evals/<case>/` in the layout `claude plugin eval` reads, so `claude plugin eval .` works too. The scripts in `tools/` run them in Claude Code (`claude -p`) with a with/without comparison:
 
 ```sh
 tools/run_case.sh rich-context-feature-stub with_skill    /tmp/lc-iter-1

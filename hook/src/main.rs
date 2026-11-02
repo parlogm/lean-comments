@@ -400,7 +400,9 @@ fn sections_for(event: &Value) -> Result<Vec<String>, ()> {
 }
 
 fn is_off() -> bool {
-    env::var_os("CLAUDE_LEAN_COMMENTS").is_some_and(|v| v.to_string_lossy().to_lowercase() == "off")
+    ["LEAN_COMMENTS", "CLAUDE_LEAN_COMMENTS"]
+        .iter()
+        .any(|name| env::var_os(name).is_some_and(|v| v.to_string_lossy().to_lowercase() == "off"))
 }
 
 fn is_copilot() -> bool {
