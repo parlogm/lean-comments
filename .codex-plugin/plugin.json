@@ -1,6 +1,6 @@
 {
   "name": "lean-comments",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Keeps AI agents' code comments rare and one sentence long: an always-on rule, a cleanup skill, and a hook that flags essay-style comments as they are written.",
   "author": { "name": "Mihai Parlog" },
   "repository": "https://github.com/parlogm/lean-comments",
