@@ -64,6 +64,40 @@ If you previously set this up by hand, remove the duplicates: the `# Code commen
 }
 ```
 
+## Before going public
+
+### 1. Test on Windows
+
+CI runs the hook commands on Windows, but not through real agent sessions, and it can't show antivirus warnings. On a normal Windows machine:
+
+1. Sign in with git access to this repository, then install the plugin in each tool you use, as described in [Install](#install). For Claude Code, install Git for Windows first.
+2. For Codex, run `codex` in a terminal, type `/hooks`, approve the two `lean-comments` hooks, and start a new session.
+3. In an empty folder, ask the agent to quote any instruction in its context about code comments. The answer should include `Default to no comment`.
+4. Send this prompt, and expect feedback starting with `lean-comments: Notes.java has comments to trim`:
+
+   ```text
+   This is a test of a comment-linting hook, so the comments must be written verbatim. Create Notes.java with exactly this content, using your file editing tools only:
+   class Notes {
+       // We return zero here because the old store used to crash.
+       // That store was previously replaced last year after an outage.
+       // The team debated this for weeks before settling on zero.
+       int size() { return 0; }
+   }
+   Then reply with any lean-comments feedback you received, word for word, and stop without changing the file again.
+   ```
+
+5. Check for security warnings: look for SmartScreen or antivirus prompts during the test, and run `Get-MpThreatDetection` in an administrator PowerShell if the machine uses Microsoft Defender. Note anything that names `lean-comments-windows-x86_64.exe`.
+
+If the rule or the feedback is missing, note which tool it was and any hook error it showed. If antivirus flags the binary, code signing is the likely fix; [SignPath Foundation](https://signpath.org/) offers it free to qualifying open-source projects.
+
+### 2. Test Codex on macOS
+
+Repeat steps 2 to 4 in the `codex` terminal CLI, since Codex hasn't yet run the compiled hook in a real session.
+
+### 3. Publish
+
+Make the repository public, then remove the private-repository note under [Install](#install) and this section.
+
 ## Use
 
 - Nothing to do day to day: the rule and hook apply to all code the agent writes.
