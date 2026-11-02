@@ -21,8 +21,8 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
       - if: startsWith(matrix.target, 'x86_64-unknown-linux') || startsWith(matrix.target, 'aarch64-unknown-linux')
@@ -38,7 +38,7 @@ jobs:
           chmod +x "bin/lean-comments-${{ matrix.build }}"
       - if: matrix.test
         run: python -m unittest tests/test_hooks.py -v
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.build }}
           path: bin/lean-comments-${{ matrix.build }}
@@ -48,7 +48,7 @@ jobs:
     if: github.event_name != 'workflow_dispatch' && !contains(github.event.head_commit.message, '[build binaries]')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: python3 tools/source_hash.py --check
 
   commit-binaries:
@@ -58,8 +58,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: bin
           merge-multiple: true
