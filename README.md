@@ -10,7 +10,15 @@ Left alone, coding agents tend to write comments that are true and well meant bu
 |---|---|
 | **Comment rule** (`hooks/comment-rule.md`) | Injected into every session by a `SessionStart` hook. One sentence per comment, no history/tickets/debates, doc comments only where a linter requires them, and don't copy the density of over-commented neighbours. Most of the effect comes from this. |
 | **Skill** (`skills/lean-comments/`) | The detailed rules with examples, doc-comment requirements per ecosystem (Checkstyle, ESLint jsdoc, ruff/pydocstyle, revive, `missing_docs`, detekt, CS1591), and a `/lean-comments` cleanup pass for a diff, file or branch. The cleanup hands removed rationale back as PR-description text. |
-| **Hook** (`hook/`, built into `bin/`) | `PostToolUse` on file edits, including Codex and Copilot `apply_patch`. Looks only at comments the edit *adds*, and nudges the agent when it sees a 3+ line comment paragraph, a doc block with more than 2 prose lines or `<p>` paragraphs, history or ticket-chain wording, or comments above ~20% of the added code. Works for Java, Kotlin, TS/JS, Go, Rust, Swift, C/C++, C#, Python, Ruby, shell, SQL and more. |
+| **Hooks** (`hook/`, built into `bin/`) | Look only at comments the agent *adds*, and nudge it when they see a 3+ line comment paragraph, a doc block with more than 2 prose lines or `<p>` paragraphs, history or ticket-chain wording, or comments above ~20% of the added code. Two checks share those rules: `PostToolUse` on each file edit (including Codex and Copilot `apply_patch`), and an end-of-turn check that catches files the agent changed some other way. Works for Java, Kotlin, TS/JS, Go, Rust, Swift, C/C++, C#, Python, Ruby, shell, SQL and more. |
+
+### Edits made outside the edit tools
+
+Agents don't always edit through their edit tools. Particularly in Claude Code's auto mode, they often change files with `sed -i`, `perl -pi`, `cat > File.java` or a short Python script; in one user's auto-mode sessions with Claude Opus 5.5 that was roughly 29% of source-file writes. A `PostToolUse` hook never sees what those commands change.
+
+So when you send a prompt, the hook snapshots the repository's source files (in the background, through a private copy of the git index; your index, stash and history are untouched). When the agent finishes its turn, it compares against that snapshot and checks the comments the turn added, whichever way they were written. If it finds any, the agent gets one more pass to trim them. Comments the edit hook already checked aren't reported again, and moved or renamed files don't count as new.
+
+What it leaves alone: changes from before your prompt, including your own; turns the agent starts without a prompt; git-ignored files, files over 1 MiB, and files whose header comment marks them as generated (`@generated`, `DO NOT EDIT` and similar); turns that change more than 40 files outside the edit tools; and turns where `HEAD` moved to commits the agent didn't just make (switching branches, pulling, resetting). Committing or amending during the turn is fine. It only covers the git repository the session runs in, so outside a git repository only the edit hook applies. Two agents working in the same checkout at the same time see each other's changes. In a typical repository the snapshot takes about 0.1 s; in one with tens of thousands of directories it takes as long as `git status`.
 
 ## Install
 
@@ -28,7 +36,7 @@ codex plugin marketplace add parlogm/lean-comments
 codex plugin add lean-comments@lean-comments
 ```
 
-Enabling a plugin doesn't trust its hooks: approve them once with `/hooks` in the terminal CLI (`codex`). The desktop app has no `/hooks` command; its bundled CLI is at `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex` on macOS.
+Enabling a plugin doesn't trust its hooks: approve them once with `/hooks` in the terminal CLI (`codex`), and again after an update that changes them. The desktop app has no `/hooks` command; its bundled CLI is at `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex` on macOS.
 
 ### GitHub Copilot CLI
 
@@ -45,33 +53,39 @@ The cloud agent doesn't load plugin hooks, and plugin support in VS Code hasn't 
 
 Nothing to install: the hooks are small compiled programs committed in `bin/`, for macOS (Apple silicon and Intel), Linux (x86-64 and ARM64, static) and Windows (x86-64). Claude Code on Windows also needs Git Bash, because it starts the hooks through `sh`; without it the hooks fail and the agent carries on. On other platforms the hooks report that there is no build, and the skill still works. To get the rule there, copy `hooks/comment-rule.md` into your tool's instructions file (`CLAUDE.md`, `AGENTS.md` or `.github/copilot-instructions.md`).
 
-If you previously set this up by hand in Claude Code, remove the duplicates: the `# Code comments` section in `~/.claude/CLAUDE.md`, the `PostToolUse` entry for the hook in `~/.claude/settings.json`, and `~/.claude/skills/lean-comments/`.
+If you previously set this up by hand in Claude Code, remove the duplicates: the `# Code comments` section in `~/.claude/CLAUDE.md`, the `lean-comments` hook entries in `~/.claude/settings.json`, and `~/.claude/skills/lean-comments/`.
 
 ### Without the plugin system (Claude Code)
 
 1. Copy `skills/lean-comments/` to `~/.claude/skills/lean-comments/`, and `hooks/run` and `bin/` to `~/.claude/lean-comments/hooks/` and `~/.claude/lean-comments/bin/`.
 2. Append `hooks/comment-rule.md` to `~/.claude/CLAUDE.md`.
-3. Add the hook to `~/.claude/settings.json`:
+3. Add the hooks to `~/.claude/settings.json`. Without the `UserPromptSubmit` and `Stop` entries, edits made through shell commands or scripts go unchecked:
 
 ```json
 "hooks": {
+  "UserPromptSubmit": [
+    { "hooks": [{ "type": "command", "command": "sh ~/.claude/lean-comments/hooks/run user-prompt-submit", "async": true, "timeout": 30 }] }
+  ],
   "PostToolUse": [
     { "matcher": "Edit|Write|MultiEdit",
       "hooks": [{ "type": "command", "command": "sh ~/.claude/lean-comments/hooks/run post-tool-use", "timeout": 10 }] }
+  ],
+  "Stop": [
+    { "hooks": [{ "type": "command", "command": "sh ~/.claude/lean-comments/hooks/run stop", "timeout": 30 }] }
   ]
 }
 ```
 
 ## Use
 
-- Nothing to do day to day: the rule and hook apply to all code the agent writes.
+- Nothing to do day to day: the rule and hooks apply to all code the agent writes.
 - Ask the agent to trim comments, or invoke the `lean-comments` skill (`/lean-comments:lean-comments` in Claude Code), to trim the comments your uncommitted diff added, or a path you give it.
-- `LEAN_COMMENTS=off` disables both hooks for a session, in all three tools. The older `CLAUDE_LEAN_COMMENTS=off` still works.
-- If the hook flags a comment that really is essential as written, the agent keeps it and says so in one line.
+- `LEAN_COMMENTS=off` disables all the hooks for a session, in all three tools. The older `CLAUDE_LEAN_COMMENTS=off` still works.
+- If a hook flags a comment that really is essential as written, the agent keeps it and says so in one line.
 
 ## Results
 
-These numbers only measure Claude; the plugin hasn't been evaluated on Codex or Copilot models. All runs used Claude Opus 5.5 in isolated `claude -p` sessions (`--setting-sources project`, so no other user config), one or two runs per configuration. Small samples, but the direction was the same in every round.
+These numbers only measure Claude; the plugin hasn't been evaluated on Codex or Copilot models. All runs used Claude Opus 5.5 in isolated `claude -p` sessions (`--setting-sources project`, so no other user config), one or two runs per configuration. Small samples, but the direction was the same in every round. They predate the end-of-turn check, and those runs allowed no `sed` or `perl`, so nearly every edit went through the edit tools.
 
 **Eval suite** (`skills/lean-comments/evals/`, graded by `tools/grade.py`):
 
@@ -103,7 +117,7 @@ Typical difference: given a ticket with background, a dependency chain and a rej
 python3 -m unittest tests/test_hooks.py
 ```
 
-Covers the hook payloads and output formats of all three tools, and the real hook commands on each platform. Set `LEAN_COMMENTS_BIN` to test a local build (`cargo build --release` in `hook/`).
+Covers the hook payloads and output formats of all three tools, the end-of-turn check in throwaway git repositories, and the real hook commands on each platform. Set `LEAN_COMMENTS_BIN` to test a local build (`cargo build --release` in `hook/`).
 
 ## Changing the hook
 
@@ -114,7 +128,7 @@ The source is in `hook/`, and it needs Rust to build. After changing it or `hook
 CI runs the hook commands on every platform, but not through real agent sessions, and it can't show antivirus warnings. On the machine you want to check:
 
 1. Install the plugin in each tool you use, as described in [Install](#install). On Windows, install Git for Windows first if you use Claude Code.
-2. For Codex, run `codex` in a terminal, type `/hooks`, approve the two `lean-comments` hooks, and start a new session.
+2. For Codex, run `codex` in a terminal, type `/hooks`, approve the four `lean-comments` hooks, and start a new session.
 3. In an empty folder, ask the agent to quote any instruction in its context about code comments. The answer should include `Default to no comment`.
 4. Send this prompt, and expect feedback starting with `lean-comments: Notes.java has comments to trim`:
 
@@ -129,7 +143,13 @@ CI runs the hook commands on every platform, but not through real agent sessions
    Then reply with any lean-comments feedback you received, word for word, and stop without changing the file again.
    ```
 
-5. On Windows, check for security warnings: look for SmartScreen or antivirus prompts during the test, and run `Get-MpThreatDetection` in an administrator PowerShell if the machine uses Microsoft Defender. Note anything that names `lean-comments-windows-x86_64.exe`.
+5. In a git repository, send this prompt, and expect feedback starting with `lean-comments: end-of-turn check`:
+
+   ```text
+   This is a test of a comment-linting hook, so the comments must be written verbatim. Create Notes2.java with exactly the content from the previous test, using one shell command (a heredoc or a python3 script), not your file editing tools. Don't change the file again in this reply, and end your turn. If a hook then reports anything, reply with that feedback word for word and stop without changing the file.
+   ```
+
+6. On Windows, check for security warnings: look for SmartScreen or antivirus prompts during the test, and run `Get-MpThreatDetection` in an administrator PowerShell if the machine uses Microsoft Defender. Note anything that names `lean-comments-windows-x86_64.exe`.
 
 If the rule or the feedback is missing, note which tool it was and any hook error it showed. If antivirus flags the binary, code signing is the likely fix; [SignPath Foundation](https://signpath.org/) offers it free to qualifying open-source projects.
 
@@ -140,11 +160,14 @@ Test cases live in `skills/lean-comments/evals/<case>/` in the layout `claude pl
 ```sh
 tools/run_case.sh rich-context-feature-stub with_skill    /tmp/lc-iter-1
 tools/run_case.sh rich-context-feature-stub without_skill /tmp/lc-iter-1
+PERMISSION_MODE=auto tools/run_case.sh rich-context-feature-stub hook_only /tmp/lc-iter-2
 tools/grade.py /tmp/lc-iter-1                # writes grading.json + comments.txt per run
 tools/replay.py bin/lean-comments-macos-arm64 path/to/repo   # hook flag rate on real history
 ```
 
-- Configurations: `with_skill` loads this repo as a plugin, `rule_only` appends only the rule, `without_skill` uses neither.
+- Configurations: `with_skill` loads this repo as a plugin, `rule_only` appends only the rule, `hook_only` wires only the hooks, `without_skill` uses none of them. Comparing `rule_only` and `hook_only` with the other two shows what each part contributes.
+- `MODEL` and `PERMISSION_MODE` (default `acceptEdits`) override the session. `auto` is closest to how many people run Claude Code, and it's where agents most often edit through the shell.
+- Each run's `timing.json` also records `hook_flags` (how many times a hook reported comments), `edit_tool_writes` and `bash_writes` (file writes through shell commands, by pattern match).
 - Run iterations outside `~/.claude/`; Claude Code blocks writes there.
 - The Checkstyle case needs a Checkstyle classpath in `CHECKSTYLE_CP` (or `tools/checkstyle.cp`); the TypeScript case needs Node 22.6+ for type stripping.
 - `tools/trigger/eval_set.json` holds should/shouldn't-trigger queries for skill-creator's description evals.

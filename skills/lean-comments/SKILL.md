@@ -102,7 +102,7 @@ When asked to trim comments, or when this skill is invoked with an optional path
 
 ## The hook
 
-A PostToolUse hook (wired up by the plugin) checks the comments each file edit *adds*. It flags any of:
+The plugin's hooks check the comments the agent *adds*: after each file edit, and at the end of each turn for files changed through shell commands or scripts. They flag any of:
 - 3 or more consecutive `//` or `#` lines
 - a doc block or docstring with more than 2 prose lines (tag lines don't count)
 - history or ticket-chain wording
