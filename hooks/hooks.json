@@ -13,6 +13,20 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run\" user-prompt-submit",
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" user-prompt-submit",
+            "powershell": "& \"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" user-prompt-submit",
+            "async": true,
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit|edit|create|apply_patch",
@@ -23,6 +37,19 @@
             "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" post-tool-use",
             "powershell": "& \"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" post-tool-use",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run\" stop",
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" stop",
+            "powershell": "& \"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" stop",
+            "timeout": 30
           }
         ]
       }
