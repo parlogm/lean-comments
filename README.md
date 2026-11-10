@@ -24,7 +24,7 @@ What it leaves alone: changes from before your prompt, including your own; turns
 
 Subagents get the rule at start-up through `SubagentStart`, in all three tools. The exception is Copilot CLI's built-in `general-purpose` agent, which doesn't fire that event and so runs without the rule. The edit hook checks subagents' edits as it does the main agent's.
 
-The end-of-turn check runs only when the main agent ends its turn. It catches shell-made edits from a subagent that finished during that turn in the same checkout, and asks the main agent to trim them. It misses subagents still running in the background when the turn ends, and subagents working in their own worktree.
+The end-of-turn check runs only when the main agent ends its turn. A foreground subagent's shell-made edits in the same checkout land inside that turn, so the check reports them to the main agent. Background subagents and subagents working in their own worktree go unchecked ([#3](https://github.com/parlogm/lean-comments/issues/3)).
 
 ## Install
 
