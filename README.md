@@ -8,7 +8,7 @@ Left alone, coding agents tend to write comments that are true and well meant bu
 
 | Piece | What it does |
 |---|---|
-| **Comment rule** (`hooks/comment-rule.md`) | Injected into every session by a `SessionStart` hook. One sentence per comment, no history/tickets/debates, doc comments only where a linter requires them, and don't copy the density of over-commented neighbours. Most of the effect comes from this. |
+| **Comment rule** (`hooks/comment-rule.md`) | Injected into every session by a `SessionStart` hook, and into every subagent by a `SubagentStart` hook. One sentence per comment, no history/tickets/debates, doc comments only where a linter requires them, and don't copy the density of over-commented neighbours. Most of the effect comes from this. |
 | **Skill** (`skills/lean-comments/`) | The detailed rules with examples, doc-comment requirements per ecosystem (Checkstyle, ESLint jsdoc, ruff/pydocstyle, revive, `missing_docs`, detekt, CS1591), and a `/lean-comments` cleanup pass for a diff, file or branch. The cleanup hands removed rationale back as PR-description text. |
 | **Hooks** (`hook/`, built into `bin/`) | Look only at comments the agent *adds*, and nudge it when they see a 3+ line comment paragraph, a doc block with more than 2 prose lines or `<p>` paragraphs, history or ticket-chain wording, or comments above ~20% of the added code. Two checks share those rules: `PostToolUse` on each file edit (including Codex and Copilot `apply_patch`), and an end-of-turn check that catches files the agent changed some other way. Works for Java, Kotlin, TS/JS, Go, Rust, Swift, C/C++, C#, Python, Ruby, shell, SQL and more. |
 
@@ -18,7 +18,13 @@ Agents don't always edit through their edit tools. Particularly in Claude Code's
 
 So when you send a prompt, the hook snapshots the repository's source files (in the background, through a private copy of the git index; your index, stash and history are untouched). When the agent finishes its turn, it compares against that snapshot and checks the comments the turn added, whichever way they were written. If it finds any, the agent gets one more pass to trim them. Comments the edit hook already checked aren't reported again, and moved or renamed files don't count as new.
 
-What it leaves alone: changes from before your prompt, including your own; turns the agent starts without a prompt; git-ignored files, files over 1 MiB, and files whose header comment marks them as generated (`@generated`, `DO NOT EDIT` and similar); turns that change more than 40 files outside the edit tools; and turns where `HEAD` moved to commits the agent didn't just make (switching branches, pulling, resetting). Committing or amending during the turn is fine. It only covers the git repository the session runs in, so outside a git repository only the edit hook applies. Two agents working in the same checkout at the same time see each other's changes. In a typical repository the snapshot takes about 0.1 s; in one with tens of thousands of directories it takes as long as `git status`.
+What it leaves alone: changes from before your prompt, including your own; turns the agent starts without a prompt; git-ignored files, files over 1 MiB, and files whose header comment marks them as generated (`@generated`, `DO NOT EDIT` and similar); turns that change more than 40 files outside the edit tools; and turns where `HEAD` moved to commits the agent didn't just make (switching branches, pulling, resetting). Committing or amending during the turn is fine. It only covers the git repository the session runs in, so outside a git repository only the edit hook applies, and edits in another repository or in a git worktree outside the session's checkout go unchecked. Two agents working in the same checkout at the same time see each other's changes. In a typical repository the snapshot takes about 0.1 s; in one with tens of thousands of directories it takes as long as `git status`.
+
+### Subagents
+
+Subagents get the rule at start-up through `SubagentStart`, in all three tools. The exception is Copilot CLI's built-in `general-purpose` agent, which doesn't fire that event and so runs without the rule. The edit hook checks subagents' edits as it does the main agent's.
+
+The end-of-turn check runs only when the main agent ends its turn. It catches shell-made edits from a subagent that finished during that turn in the same checkout, and asks the main agent to trim them. It misses subagents still running in the background when the turn ends, and subagents working in their own worktree.
 
 ## Install
 
@@ -58,11 +64,16 @@ If you previously set this up by hand in Claude Code, remove the duplicates: the
 ### Without the plugin system (Claude Code)
 
 1. Copy `skills/lean-comments/` to `~/.claude/skills/lean-comments/`, and `hooks/run` and `bin/` to `~/.claude/lean-comments/hooks/` and `~/.claude/lean-comments/bin/`.
-2. Append `hooks/comment-rule.md` to `~/.claude/CLAUDE.md`.
-3. Add the hooks to `~/.claude/settings.json`. Without the `UserPromptSubmit` and `Stop` entries, edits made through shell commands or scripts go unchecked:
+2. Add the hooks to `~/.claude/settings.json`. `SessionStart` and `SubagentStart` give the main agent and its subagents the rule, so drop any `# Code comments` section an earlier setup appended to `~/.claude/CLAUDE.md`. Without the `UserPromptSubmit` and `Stop` entries, edits made through shell commands or scripts go unchecked:
 
 ```json
 "hooks": {
+  "SessionStart": [
+    { "hooks": [{ "type": "command", "command": "sh ~/.claude/lean-comments/hooks/run session-start", "timeout": 10 }] }
+  ],
+  "SubagentStart": [
+    { "hooks": [{ "type": "command", "command": "sh ~/.claude/lean-comments/hooks/run subagent-start", "timeout": 10 }] }
+  ],
   "UserPromptSubmit": [
     { "hooks": [{ "type": "command", "command": "sh ~/.claude/lean-comments/hooks/run user-prompt-submit", "async": true, "timeout": 30 }] }
   ],
@@ -128,8 +139,8 @@ The source is in `hook/`, and it needs Rust to build. After changing it or `hook
 CI runs the hook commands on every platform, but not through real agent sessions, and it can't show antivirus warnings. On the machine you want to check:
 
 1. Install the plugin in each tool you use, as described in [Install](#install). On Windows, install Git for Windows first if you use Claude Code.
-2. For Codex, run `codex` in a terminal, type `/hooks`, approve the four `lean-comments` hooks, and start a new session.
-3. In an empty folder, ask the agent to quote any instruction in its context about code comments. The answer should include `Default to no comment`.
+2. For Codex, run `codex` in a terminal, type `/hooks`, approve the five `lean-comments` hooks, and start a new session.
+3. In an empty folder, ask the agent to quote any instruction in its context about code comments. The answer should include `Default to no comment`. Then ask it to have an `Explore` subagent (`explore` in Copilot) quote the same, without passing the rule along; that answer should include it too.
 4. Send this prompt, and expect feedback starting with `lean-comments: Notes.java has comments to trim`:
 
    ```text

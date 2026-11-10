@@ -9,6 +9,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DENSITY = "post-tool-use"
 SESSION_START = "session-start"
+SUBAGENT_START = "subagent-start"
 TURN_START = "user-prompt-submit"
 TURN_END = "stop"
 HOST_ENV = ("COPILOT_CLI", "LEAN_COMMENTS", "CLAUDE_LEAN_COMMENTS", "PLUGIN_DATA", "CLAUDE_PLUGIN_DATA")
@@ -188,6 +189,25 @@ class SessionStart(unittest.TestCase):
     def test_off_switch_silences_rule(self):
         self.assertIsNone(run(SESSION_START, LEAN_COMMENTS="off"))
         self.assertIsNone(run(SESSION_START, CLAUDE_LEAN_COMMENTS="off"))
+
+
+class SubagentStart(unittest.TestCase):
+    CLAUDE = {"session_id": "abc123", "cwd": "/r", "hook_event_name": "SubagentStart", "agent_id": "a1", "agent_type": "Explore"}
+    CODEX = {**CLAUDE, "turn_id": "t1", "permission_mode": "default"}
+    COPILOT = {"sessionId": "s1", "timestamp": 1, "cwd": "/r", "transcriptPath": "/t.jsonl", "agentName": "explore"}
+
+    def test_claude_and_codex_get_nested_context(self):
+        for event in (self.CLAUDE, self.CODEX):
+            inner = run(SUBAGENT_START, event)["hookSpecificOutput"]
+            self.assertEqual(inner["hookEventName"], "SubagentStart")
+            self.assertIn("Default to no comment", inner["additionalContext"])
+
+    def test_copilot_gets_top_level_context(self):
+        self.assertIn("Default to no comment", run(SUBAGENT_START, self.COPILOT, copilot=True)["additionalContext"])
+
+    def test_off_switch_silences_rule(self):
+        self.assertIsNone(run(SUBAGENT_START, self.CLAUDE, LEAN_COMMENTS="off"))
+        self.assertIsNone(run(SUBAGENT_START, self.COPILOT, copilot=True, CLAUDE_LEAN_COMMENTS="off"))
 
 
 def git(repo, *args, **env_extra):
@@ -495,10 +515,12 @@ class HookWiring(unittest.TestCase):
     def launch(self, argv):
         env = {k: v for k, v in os.environ.items() if k not in HOST_ENV}
         results = {}
-        for name, payload in (("SessionStart", b"{}"), ("PostToolUse", self.EDIT)):
+        for name, payload in (("SessionStart", b"{}"), ("SubagentStart", b"{}"), ("PostToolUse", self.EDIT)):
             done = subprocess.run(argv(self.handlers()[name]), input=payload, capture_output=True, env=env, check=True)
             results[name] = json.loads(done.stdout)
-        self.assertIn("Default to no comment", results["SessionStart"]["hookSpecificOutput"]["additionalContext"])
+        for name in ("SessionStart", "SubagentStart"):
+            self.assertEqual(results[name]["hookSpecificOutput"]["hookEventName"], name)
+            self.assertIn("Default to no comment", results[name]["hookSpecificOutput"]["additionalContext"])
         self.assertEqual(results["PostToolUse"]["decision"], "block")
 
     def filled(self, command):

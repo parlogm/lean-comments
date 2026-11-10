@@ -737,14 +737,14 @@ fn emit(value: &Value) {
     let _ = writeln!(std::io::stdout(), "{value}");
 }
 
-fn session_start() {
+fn inject_rule(hook_event_name: &str) {
     if is_off() {
         return;
     }
     if is_copilot() {
         emit(&json!({"additionalContext": RULE}));
     } else {
-        emit(&json!({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": RULE}}));
+        emit(&json!({"hookSpecificOutput": {"hookEventName": hook_event_name, "additionalContext": RULE}}));
     }
 }
 
@@ -868,13 +868,14 @@ fn main() {
     std::panic::set_hook(Box::new(|_| {}));
     // A linting bug must never fail the agent's edit, so panics end the hook quietly.
     let _ = std::panic::catch_unwind(|| match command.as_str() {
-        "session-start" => session_start(),
+        "session-start" => inject_rule("SessionStart"),
+        "subagent-start" => inject_rule("SubagentStart"),
         "post-tool-use" => post_tool_use(),
         "user-prompt-submit" => user_prompt_submit(),
         "stop" => stop(),
         other => {
             eprintln!(
-                "lean-comments: unknown command '{other}', expected session-start, post-tool-use, user-prompt-submit or stop"
+                "lean-comments: unknown command '{other}', expected session-start, subagent-start, post-tool-use, user-prompt-submit or stop"
             );
             std::process::exit(1);
         }
