@@ -70,6 +70,16 @@ class ClaudePayloads(unittest.TestCase):
         event = {"tool_name": "Write", "tool_input": {"file_path": "C:\\r\\node_modules\\A.java", "content": ESSAY}}
         self.assertIsNone(run(DENSITY, event))
 
+    def test_subagent_worktree_edit_is_flagged(self):
+        event = {"tool_name": "Write", "tool_input": {"file_path": "/r/.claude/worktrees/agent-a1/src/A.java", "content": ESSAY}}
+        self.assertEqual(run(DENSITY, event)["decision"], "block")
+
+    def test_skip_paths_inside_a_subagent_worktree_are_respected(self):
+        for path in ("/r/.claude/worktrees/agent-a1/.claude/hooks/a.py", "/r/.claude/worktrees/agent-a1/node_modules/A.java",
+                     "/r/.claude/hooks/a.py", "C:\\r\\.claude\\worktrees\\agent-a1\\vendor\\A.java"):
+            with self.subTest(path=path):
+                self.assertIsNone(run(DENSITY, {"tool_name": "Write", "tool_input": {"file_path": path, "content": ESSAY}}))
+
 
 class CodexPayloads(unittest.TestCase):
     def event(self, body):
@@ -205,6 +215,14 @@ class SubagentStart(unittest.TestCase):
     def test_copilot_gets_top_level_context(self):
         self.assertIn("Default to no comment", run(SUBAGENT_START, self.COPILOT, copilot=True)["additionalContext"])
 
+    def test_fork_already_has_the_rule_from_its_parent(self):
+        self.assertIsNone(run(SUBAGENT_START, {**self.CLAUDE, "agent_type": "fork"}))
+
+    def test_unreadable_payload_still_gets_the_rule(self):
+        for event in ({}, ["not", "an", "object"]):
+            with self.subTest(event=event):
+                self.assertIn("Default to no comment", run(SUBAGENT_START, event)["hookSpecificOutput"]["additionalContext"])
+
     def test_off_switch_silences_rule(self):
         self.assertIsNone(run(SUBAGENT_START, self.CLAUDE, LEAN_COMMENTS="off"))
         self.assertIsNone(run(SUBAGENT_START, self.COPILOT, copilot=True, CLAUDE_LEAN_COMMENTS="off"))
@@ -304,6 +322,30 @@ class TurnCheck(unittest.TestCase):
         out = self.stop(active=True)
         self.assertIn("B.java", out["reason"])
         self.assertNotIn("A.java", out["reason"])
+
+    def report_back(self):
+        notice = "<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n</task-notification>"
+        self.assertIsNone(self.hook(TURN_START, {"prompt": notice}))
+
+    def test_background_report_back_mid_turn_keeps_the_turn_baseline(self):
+        self.prompt()
+        self.write("A.java", ESSAY)
+        self.report_back()
+        self.assertIn("A.java", self.stop()["reason"])
+
+    def test_background_report_back_between_turns_starts_a_turn(self):
+        self.write("A.java", ESSAY)
+        self.report_back()
+        self.write("B.java", ESSAY)
+        reason = self.stop()["reason"]
+        self.assertIn("B.java", reason)
+        self.assertNotIn("A.java", reason)
+
+    def test_new_prompt_mid_turn_still_starts_a_fresh_baseline(self):
+        self.prompt()
+        self.write("A.java", ESSAY)
+        self.prompt()
+        self.assertIsNone(self.stop())
 
     def test_turn_started_without_a_prompt_is_not_checked(self):
         self.prompt()

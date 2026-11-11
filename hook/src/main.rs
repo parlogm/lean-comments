@@ -38,6 +38,7 @@ const SNAPSHOT_ABANDONED: Duration = Duration::from_secs(120);
 static SKIP_PATH: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"/(\.claude|\.codex|\.copilot|\.agents|skills|build/generated|node_modules|vendor|dist)/").unwrap()
 });
+static AGENT_WORKTREE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^.*/\.claude/worktrees/[^/]+/").unwrap());
 static EXEMPT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(concat!(
         r"(?i)^\s*(//|#|--)\s*(NOSONAR|noinspection|eslint|prettier-ignore|@ts-|noqa|type:|",
@@ -401,7 +402,7 @@ fn report(files: &[(String, Pairs)], cwd: &str) -> Vec<String> {
     for (path, pairs) in files {
         let shown = path.replace('\\', "/");
         let Some(lang) = lang_for(path) else { continue };
-        if SKIP_PATH.is_match(&format!("/{shown}")) {
+        if SKIP_PATH.is_match(&AGENT_WORKTREE.replace(&format!("/{shown}"), "/")) {
             continue;
         }
         let findings = findings_for(pairs, lang);
@@ -748,6 +749,18 @@ fn inject_rule(hook_event_name: &str) {
     }
 }
 
+// A fork inherits the parent's context, which already holds the rule.
+fn subagent_start() {
+    let event = read_event();
+    if event.as_ref().and_then(|e| e.get("agent_type")).and_then(Value::as_str) != Some("fork") {
+        inject_rule("SubagentStart");
+    }
+}
+
+fn is_task_notification(event: &Value) -> bool {
+    event.get("prompt").and_then(Value::as_str).is_some_and(|p| p.trim_start().starts_with("<task-notification>"))
+}
+
 fn record_checked_files(event: &Value, files: &[(String, Pairs)]) {
     let Some(state) = state_dir(event).filter(|dir| dir.is_dir()) else { return };
     let cwd = Path::new(event_cwd(event));
@@ -794,6 +807,10 @@ fn user_prompt_submit() {
     }
     let Some(event) = read_event() else { return };
     let Some(state) = state_dir(&event) else { return };
+    // A background task reporting back mid-turn must not move the baseline of the turn it interrupts.
+    if is_task_notification(&event) && ["baseline", "pending"].iter().any(|name| state.join(name).exists()) {
+        return;
+    }
     if ensure_private_dir(&state).is_none() {
         return;
     }
@@ -869,7 +886,7 @@ fn main() {
     // A linting bug must never fail the agent's edit, so panics end the hook quietly.
     let _ = std::panic::catch_unwind(|| match command.as_str() {
         "session-start" => inject_rule("SessionStart"),
-        "subagent-start" => inject_rule("SubagentStart"),
+        "subagent-start" => subagent_start(),
         "post-tool-use" => post_tool_use(),
         "user-prompt-submit" => user_prompt_submit(),
         "stop" => stop(),

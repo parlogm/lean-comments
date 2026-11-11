@@ -22,9 +22,9 @@ What it leaves alone: changes from before your prompt, including your own; turns
 
 ### Subagents
 
-Subagents get the rule at start-up through `SubagentStart`, in all three tools. The exception is Copilot CLI's built-in `general-purpose` agent, which doesn't fire that event and so runs without the rule. The edit hook checks subagents' edits as it does the main agent's.
+Subagents get the rule at start-up through `SubagentStart`, in all three tools. A Claude Code fork already has it in the context it inherits from the main agent, so it isn't added a second time. The exception is Copilot CLI's built-in `general-purpose` agent, which doesn't fire that event and so runs without the rule. The edit hook checks subagents' edits as it does the main agent's, including a subagent working in its own worktree under `.claude/worktrees/`.
 
-The end-of-turn check runs only when the main agent ends its turn. A foreground subagent's shell-made edits in the same checkout land inside that turn, so the check reports them to the main agent. Background subagents and subagents working in their own worktree go unchecked ([#3](https://github.com/parlogm/lean-comments/issues/3)).
+The end-of-turn check runs only when the main agent ends its turn. It reports to the main agent the shell-made edits any subagent made in the same checkout during that turn, and a background subagent reporting back partway through the turn doesn't reset it. Two cases go unchecked ([#3](https://github.com/parlogm/lean-comments/issues/3)): shell-made edits a background subagent makes after the main agent's turn has ended, and shell-made edits in a subagent's own worktree.
 
 ## Install
 
