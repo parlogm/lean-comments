@@ -13,6 +13,19 @@
         ]
       }
     ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/run\" subagent-start",
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" subagent-start",
+            "powershell": "& \"${CLAUDE_PLUGIN_ROOT}\\bin\\lean-comments-windows-x86_64.exe\" subagent-start",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
